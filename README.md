@@ -9,7 +9,7 @@ The parse converts 2G,3G, and 4G Huawei bulk configuration data XML files to csv
 java -jar  huaweicmxmlparser.jar bulkcm.xml outputDirectory
 
 #Download and installation
-The lastest compiled jar file is availabled in the dist directory. Alternatively, download it directly from [here](https://github.com/bodastage/boda-huaweicmxmlparser/blob/master/dist/boda-huaweicmxmlparser.jar).
+The lastest compiled jar file is availabled in the dist directory. Alternatively, download it directly from [here](https://github.com/bodastage/boda-huaweicmxmlparser/raw/master/dist/boda-huaweicmxmlparser.jar).
 
 #Requirements
 To run the jar file, you need Java version 1.6 and above.
