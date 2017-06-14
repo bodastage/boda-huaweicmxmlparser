@@ -10,6 +10,9 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -101,6 +104,20 @@ public class HuaweiCMXMLParser {
     private String moduleXSIType = "";
     
     /**
+     * Module tag productversion attribute
+     * 
+     * @since 1.1.0
+     */
+    private String moduleProductVersion = "";
+    
+    /**
+     * Module tag remark attribute
+     * 
+     * @since 1.1.0
+     */
+    private String moduleRemark = "";
+    
+    /**
      * The holds the parameters and corresponding values for the moi tag  
      * currently being processed.
      * 
@@ -158,21 +175,70 @@ public class HuaweiCMXMLParser {
      */
     private String dataFile;
     
+   /**
+     * The file/directory to be parsed.
+     * 
+     * @since 1.1.0
+     */
+    private String dataSource;
+            
+    /**
+     * Parser states. Currently there are only 2: extraction and parsing
+     * 
+     * @since 1.1.0
+     */
+    private int parserState = ParserStates.EXTRACTING_PARAMETERS;
+
+    /**
+     * Extraction date time.
+     * 
+     * @since 1.1.0
+     */
+    private String varDateTime;
+    
+    
     HuaweiCMXMLParser(){}
+    
+    /**
+     * Parser entry point 
+     * 
+     * @since 1.0.0
+     * @version 1.1.0
+     * 
+     * @throws XMLStreamException
+     * @throws FileNotFoundException
+     * @throws UnsupportedEncodingException 
+     */
+    public void parse() throws XMLStreamException, FileNotFoundException, UnsupportedEncodingException {
+        //Extract parameters
+        if (parserState == ParserStates.EXTRACTING_PARAMETERS) {
+            processFileOrDirectory();
+
+            parserState = ParserStates.EXTRACTING_VALUES;
+        }
+
+        //Extracting values
+        if (parserState == ParserStates.EXTRACTING_VALUES) {
+            processFileOrDirectory();
+            parserState = ParserStates.EXTRACTING_DONE;
+        }
+        
+        closeMOPWMap();
+    }
     
     /**
      * The parser's entry point.
      * 
      * @param filename 
      */
-    public void parse() 
+    public void parseFile(String filename) 
     throws XMLStreamException, FileNotFoundException, UnsupportedEncodingException
     {
             XMLInputFactory factory = XMLInputFactory.newInstance();
 
             XMLEventReader eventReader = factory.createXMLEventReader(
-                    new FileReader(this.dataFile));
-            baseFileName = getFileBasename(this.dataFile);
+                    new FileReader(filename));
+            baseFileName = getFileBasename(filename);
 
             while (eventReader.hasNext()) {
                 XMLEvent event = eventReader.nextEvent();
@@ -189,11 +255,83 @@ public class HuaweiCMXMLParser {
                         break;
                 }
             }
+
             
+    }
+    
+    /**
+     * Determines if the source data file is a regular file or a directory and 
+     * parses it accordingly
+     * 
+     * @since 1.1.0
+     * @version 1.0.0
+     * @throws XMLStreamException
+     * @throws FileNotFoundException
+     * @throws UnsupportedEncodingException
+     */
+    public void processFileOrDirectory()
+            throws XMLStreamException, FileNotFoundException, UnsupportedEncodingException {
+        //this.dataFILe;
+        Path file = Paths.get(this.dataSource);
+        boolean isRegularExecutableFile = Files.isRegularFile(file)
+                & Files.isReadable(file);
+
+        boolean isReadableDirectory = Files.isDirectory(file)
+                & Files.isReadable(file);
+
+        if (isRegularExecutableFile) {
+            this.setFileName(this.dataSource);
+            baseFileName =  getFileBasename(this.dataFile);
+            if( parserState == ParserStates.EXTRACTING_PARAMETERS){
+                System.out.print("Extracting parameters from " + this.baseFileName + "...");
+            }else{
+                System.out.print("Parsing " + this.baseFileName + "...");
+            }
+            this.parseFile(this.dataSource);
             
-            //
-            closeMOPWMap();
-            
+            if( parserState == ParserStates.EXTRACTING_PARAMETERS){
+                 System.out.println("Done.");
+            }else{
+                System.out.println("Done.");
+                //System.out.println(this.baseFileName + " successfully parsed.\n");
+            }
+        }
+
+        if (isReadableDirectory) {
+
+            File directory = new File(this.dataSource);
+
+            //get all the files from a directory
+            File[] fList = directory.listFiles();
+
+            for (File f : fList) {
+                this.setFileName(f.getAbsolutePath());
+                try {
+                    
+                    //@TODO: Duplicate call in parseFile. Remove!
+                    baseFileName =  getFileBasename(this.dataFile);
+                    if( parserState == ParserStates.EXTRACTING_PARAMETERS){
+                        System.out.print("Extracting parameters from " + this.baseFileName + "...");
+                    }else{
+                        System.out.print("Parsing " + this.baseFileName + "...");
+                    }
+                    
+                    //Parse
+                    this.parseFile(f.getAbsolutePath());
+                    if( parserState == ParserStates.EXTRACTING_PARAMETERS){
+                         System.out.println("Done.");
+                    }else{
+                        System.out.println("Done.");
+                        //System.out.println(this.baseFileName + " successfully parsed.\n");
+                    }
+                   
+                } catch (Exception e) {
+                    System.out.println(e.getMessage());
+                    System.out.println("Skipping file: " + this.baseFileName + "\n");
+                }
+            }
+        }
+
     }
     
     /**
@@ -214,12 +352,13 @@ public class HuaweiCMXMLParser {
         
 
         //Handle start of <footer ...>
-        if(qName.equals("filefooter")){
+        if(qName.equals("filefooter") && parserState == ParserStates.EXTRACTING_PARAMETERS){
             String datetime = "";
             while (attributes.hasNext()) {
                 Attribute attribute = attributes.next();
                 if (attribute.getName().getLocalPart().equals("datetime")) {
                     datetime = attribute.getValue();
+                    varDateTime = datetime;
                 }
             }            
             
@@ -248,6 +387,7 @@ public class HuaweiCMXMLParser {
         if(qName.equals("attributes")){
             return;
         }
+
         
         //Handle start of <module ...>
         if(qName.equals("module")){
@@ -256,6 +396,14 @@ public class HuaweiCMXMLParser {
                 Attribute attribute = attributes.next();
                 if (attribute.getName().getLocalPart().equals("type")) {
                     this.moduleXSIType = attribute.getValue();
+                }
+                
+                if (attribute.getName().getLocalPart().equals("productversion")) {
+                    this.moduleProductVersion = attribute.getValue();
+                }
+                
+                if (attribute.getName().getLocalPart().equals("remark")) {
+                    this.moduleRemark = attribute.getValue();
                 }
             }
             
@@ -297,9 +445,10 @@ public class HuaweiCMXMLParser {
         String prefix = endElement.getName().getPrefix();
         String qName = endElement.getName().getLocalPart();
         
-        String paramNames = "FileName,ne_xsitype,netype,neversion,neid";
-        String paramValues = baseFileName +","+neXSIType+","+neType+","+neVersion
-                +","+neId;
+        String paramNames = "FileName,varDateTime,ne_xsitype,netype,neversion,neid,"
+                + "module_type,module_remark, module_productversion";
+        String paramValues = baseFileName + "," + varDateTime +","+neXSIType+","+neType+","+neVersion
+                +","+neId + "," + moduleXSIType + "," + moduleRemark + "," + moduleProductVersion;
         
         //Handle </NE>
         if(qName.equals("NE")){
@@ -319,47 +468,67 @@ public class HuaweiCMXMLParser {
             return;
         }
         
+
+        
         //Handle </moi>
         if(qName.equals("moi")){
                         
-            //check if print writer doesn't exists and create it
-            if(!moiPrintWriters.containsKey(moiXSIType)){
-                String moiFile = outputDirectory + File.separatorChar + moiXSIType +  ".csv";
-                 moiPrintWriters.put(moiXSIType, new PrintWriter(moiFile));
-
-                 
-                Stack moiAttributes = new Stack();
+            
+            //Extract parameters
+            if( parserState == ParserStates.EXTRACTING_PARAMETERS){
+                Stack columns = new Stack();
+                if( ! moColumns.containsKey(moiXSIType) ){
+                    moColumns.put(moiXSIType, columns);
+                }
+                columns = moColumns.get(moiXSIType);
                 Iterator<Map.Entry<String, String>> iter 
-                        = moiParameterValueMap.entrySet().iterator();
-                
-                String pName = paramNames;
+                            = moiParameterValueMap.entrySet().iterator();
+
                 while (iter.hasNext()) {
                     Map.Entry<String, String> me = iter.next();
-                    moiAttributes.push(me.getKey());
-                    pName += "," + me.getKey();
+                    if( ! columns.contains(me.getKey())){
+                        columns.push(me.getKey());
+                    }       
                 }
-                moColumns.put(moiXSIType, moiAttributes);
-                moiPrintWriters.get(moiXSIType).println(pName);
-                 
             }
-            
-            Stack moiAttributes = moColumns.get(moiXSIType);
-            for(int i = 0; i< moiAttributes.size(); i++){
-                String moiName = moiAttributes.get(i).toString();
+        
+            if(parserState == ParserStates.EXTRACTING_VALUES){
+                //check if print writer doesn't exists and create it
+                if(!moiPrintWriters.containsKey(moiXSIType)){
+                    String moiFile = outputDirectory + File.separatorChar + moiXSIType +  ".csv";
+                     moiPrintWriters.put(moiXSIType, new PrintWriter(moiFile));
+
+                    String pName = paramNames;
+                    Stack columns = moColumns.get(moiXSIType);
+                    for(int i =0; i < columns.size(); i++){
+                        pName += "," + columns.get(i);
+                    }
+                    
+                    moiPrintWriters.get(moiXSIType).println(pName);
+
+                }
+
+                Stack moiAttributes = moColumns.get(moiXSIType);
+                for(int i = 0; i< moiAttributes.size(); i++){
+                    String moiName = moiAttributes.get(i).toString();
+
+                    if( moiParameterValueMap.containsKey(moiName) ){
+                        paramValues += "," + moiParameterValueMap.get(moiName);
+                    }else{
+                        paramValues += ",";
+                    }   
+                }
+
+                PrintWriter pw = moiPrintWriters.get(moiXSIType);
+                pw.println(paramValues);
+
                 
-                if( moiParameterValueMap.containsKey(moiName) ){
-                    paramValues += "," + moiParameterValueMap.get(moiName);
-                }else{
-                    paramValues += ",";
-                }   
             }
-            
-            PrintWriter pw = moiPrintWriters.get(moiXSIType);
-            pw.println(paramValues);
-            
+
             moiParameterValueMap.clear();
             inMoi = false;
             return;
+
         }
         
         //Handle </attributes>
@@ -501,5 +670,16 @@ public class HuaweiCMXMLParser {
      */
     public void setFileName(String filename ){
         this.dataFile = filename;
+    }
+    
+    /**
+     * Set name of file to parser.
+     * 
+     * @since 1.0.1
+     * @version 1.0.0
+     * @param dataSource 
+     */
+    public void setDataSource(String dataSource ){
+        this.dataSource = dataSource;
     }
 }

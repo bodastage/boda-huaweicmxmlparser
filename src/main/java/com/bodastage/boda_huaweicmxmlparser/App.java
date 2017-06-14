@@ -37,7 +37,7 @@ public class App
             }
 
             HuaweiCMXMLParser cmXMLparser = new HuaweiCMXMLParser();
-            cmXMLparser.setFileName(filename);
+            cmXMLparser.setDataSource(filename);
             cmXMLparser.setOutputDirectory(outputDirectory);
             cmXMLparser.parse();
             cmXMLparser.printExecutionTime();
@@ -54,8 +54,8 @@ public class App
      * @version 1.0.0
      */
     static public void showHelp(){
-        System.out.println("boda-huaweicmxmlparser 1.0.0. Copyright (c) 2016 Bodastage(http://www.bodastage.com)");
+        System.out.println("boda-huaweinbixmlparser 1.0.0. Copyright (c) 2016 Bodastage(http://www.bodastage.com)");
         System.out.println("Parses HuaweI Bulk Configuration Data XML to csv.");
-        System.out.println("Usage: java -jar boda-huaweicmxmlparser.jar <fileToParse.xml> <outputDirectory>");
+        System.out.println("Usage: java -jar boda-huaweinbixmlparser.jar <fileToParse.xml|Directory> <outputDirectory>");
     }
 }
